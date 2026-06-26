@@ -105,16 +105,14 @@ for cat, syms in categories.items():
 # PREDICTION FUNCTION
 # =========================
 def predict(symptoms_selected):
-    input_vector = np.zeros(len(symptoms))
+    input_vector = np.zeros(len(symptoms)).reshape(1, -1)
 
     for s in symptoms_selected:
         if s in symptoms:
             idx = symptoms.index(s)
-            input_vector[idx] = 1
+            input_vector[0][idx] = 1
 
-    pred_index = model.predict([input_vector])[0]
-
-    # IMPORTANT FIX: convert encoded label → disease name
+    pred_index = model.predict(input_vector)[0]
     disease_name = encoder.inverse_transform([pred_index])[0]
 
     return disease_name
