@@ -20,56 +20,39 @@ def load_model():
 model, encoder = load_model()
 
 # =========================
-# FULL SYMPTOM LIST (MUST MATCH TRAINING ORDER)
+# SYMPTOM LIST (MUST MATCH TRAINING ORDER)
 # =========================
-symptoms = list(model.feature_names_in_)
+symptoms = [
+    'itching','skin_rash','nodal_skin_eruptions','continuous_sneezing','shivering','chills',
+    'joint_pain','stomach_pain','acidity','ulcers_on_tongue','vomiting','fatigue',
+    'burning_micturition','spotting_ urination','weight_gain','weight_loss','anxiety',
+    'cough','high_fever','headache','nausea','loss_of_appetite','back_pain',
+    'constipation','abdominal_pain','diarrhoea','mild_fever','yellowing_of_eyes',
+    'breathlessness','sweating','dehydration','indigestion','chest_pain',
+    'dizziness','loss_of_balance','unsteadiness','blurred_and_distorted_vision',
+    'phlegm','throat_irritation','runny_nose','congestion','fast_heart_rate',
+    'weakness_in_limbs','irritability','depression','muscle_pain','obesity',
+    'swelling_joints','stiff_neck','dark_urine','yellowish_skin'
+]
 
 # =========================
-# CATEGORY SYSTEM (MORE COMPLETE)
+# CATEGORY UI (EXPANDED)
 # =========================
 categories = {
-    "🔥 General": [
-        "fatigue","lethargy","malaise","weight_loss","weight_gain","loss_of_appetite",
-        "dehydration","weakness_in_limbs","restlessness","anxiety","depression","irritability"
-    ],
-    "🤒 Fever / Infection": [
-        "high_fever","mild_fever","chills","shivering","sweating","toxic_look_(typhos)"
-    ],
-    "🫁 Respiratory": [
-        "cough","phlegm","breathlessness","chest_pain","runny_nose",
-        "congestion","mucoid_sputum","rusty_sputum","throat_irritation","loss_of_smell"
-    ],
-    "🍽️ Digestive": [
-        "stomach_pain","abdominal_pain","nausea","vomiting","diarrhoea",
-        "indigestion","acidity","constipation","loss_of_appetite","stomach_bleeding"
-    ],
-    "🧠 Neurological": [
-        "headache","dizziness","loss_of_balance","slurred_speech",
-        "altered_sensorium","visual_disturbances","unsteadiness","spinning_movements"
-    ],
-    "🧴 Skin": [
-        "itching","skin_rash","blister","blackheads","pus_filled_pimples",
-        "red_spots_over_body","skin_peeling","yellow_crust_ooze"
-    ],
-    "💧 Urinary": [
-        "burning_micturition","continuous_feel_of_urine","dark_urine",
-        "polyuria","bladder_discomfort"
-    ],
-    "❤️ Cardio": [
-        "chest_pain","palpitations","fast_heart_rate","swollen_blood_vessels"
-    ],
-    "🦴 Musculoskeletal": [
-        "joint_pain","back_pain","neck_pain","knee_pain",
-        "muscle_pain","muscle_weakness","stiff_neck","swelling_joints"
-    ],
-    "🧬 Systemic / Metabolic": [
-        "obesity","enlarged_thyroid","irregular_sugar_level",
-        "increased_appetite","polyuria","family_history"
-    ]
+    "🔥 General": ["fatigue","weight_gain","weight_loss","loss_of_appetite","dehydration","weakness_in_limbs","anxiety","depression","irritability"],
+    "🤒 Fever / Infection": ["high_fever","mild_fever","chills","shivering","sweating"],
+    "🫁 Respiratory": ["cough","phlegm","breathlessness","chest_pain","runny_nose","congestion","throat_irritation"],
+    "🍽️ Digestive": ["stomach_pain","vomiting","nausea","diarrhoea","acidity","indigestion","abdominal_pain","constipation"],
+    "🧠 Neurological": ["headache","dizziness","loss_of_balance","unsteadiness","blurred_and_distorted_vision"],
+    "🧴 Skin": ["itching","skin_rash","nodal_skin_eruptions"],
+    "💧 Urinary": ["burning_micturition","spotting_ urination","dark_urine"],
+    "❤️ Cardio": ["chest_pain","fast_heart_rate"],
+    "🦴 Musculoskeletal": ["joint_pain","back_pain","neck_pain","muscle_pain","swelling_joints","stiff_neck"],
+    "🧬 Metabolic": ["obesity","yellowing_of_eyes","yellowish_skin"]
 }
 
 # =========================
-# UI (NO DUPLICATE IDS FIXED)
+# INPUT UI
 # =========================
 st.subheader("Select Symptoms")
 
@@ -77,27 +60,31 @@ selected_symptoms = []
 
 for cat, syms in categories.items():
     with st.expander(cat):
-        for s in syms:
+        for i, s in enumerate(syms):
             if s in symptoms:
-                key = f"{cat}_{s}"   # FIX: avoids duplicate checkbox error
-                if st.checkbox(s, key=key):
+                if st.checkbox(s, key=f"{cat}_{s}_{i}"):
                     selected_symptoms.append(s)
 
 # =========================
-# PREDICTION FUNCTION
+# PREDICTION FUNCTION (FIXED)
 # =========================
 def predict(symptoms_selected):
-    input_vector = np.zeros(len(symptoms)).reshape(1, -1)
+
+    input_vector = np.zeros(model.n_features_in_)
 
     for s in symptoms_selected:
         if s in symptoms:
             idx = symptoms.index(s)
-            input_vector[0][idx] = 1
+            if idx < len(input_vector):
+                input_vector[idx] = 1
 
-    pred_index = model.predict(input_vector)[0]
-    disease_name = encoder.inverse_transform([pred_index])[0]
+    pred_index = model.predict([input_vector])[0]
 
-    return disease_name
+    # ✅ FIX: correct decoding
+    try:
+        return encoder.inverse_transform([pred_index])[0]
+    except:
+        return encoder.classes_[pred_index]
 
 # =========================
 # BUTTON
