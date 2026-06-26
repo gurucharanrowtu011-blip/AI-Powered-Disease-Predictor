@@ -65,9 +65,13 @@ def predict(symptoms_selected):
             idx = symptoms.index(s)
             input_vector[idx] = 1
 
+    # prediction
     prediction = model.predict([input_vector])[0]
 
-    return prediction
+    # probability
+    proba = model.predict_proba([input_vector])[0]
+
+    return prediction, proba
 
 # =========================
 # BUTTON
@@ -76,6 +80,17 @@ if st.button("🩺 Predict Disease"):
 
     if len(selected_symptoms) == 0:
         st.warning("Please select at least one symptom")
+
     else:
-        disease = predict(selected_symptoms)
+        disease, proba = predict(selected_symptoms)
+
         st.success(f"🧾 Disease: {disease}")
+
+        # 🔥 TOP 3 PROBABLE DISEASES
+        top_n = 3
+        top_indices = np.argsort(proba)[::-1][:top_n]
+
+        st.subheader("📊 Prediction Confidence")
+
+        for i in top_indices:
+            st.write(f"{model.classes_[i]} → {round(proba[i]*100, 2)}%")
