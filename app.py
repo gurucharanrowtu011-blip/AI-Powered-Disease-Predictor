@@ -4,110 +4,84 @@ import pandas as pd
 import joblib
 
 # =========================
-# LOAD MODEL + ENCODER
+# LOAD FILES
 # =========================
 model = joblib.load("disease_predictor_model.pkl")
 label_encoder = joblib.load("label_encoder.pkl")
+feature_columns = joblib.load("features.pkl")
 
-# OPTIONAL: dataset for medicine lookup
 df = pd.read_csv("training.csv")
 
 # =========================
-# SYMPTOM CATEGORIES
-# =========================
-symptom_groups = {
-    "General": [
-        "itching", "skin_rash", "fatigue", "lethargy",
-        "fever", "chills", "weight_loss", "weight_gain"
-    ],
-    "Respiratory": [
-        "cough", "breathlessness", "chest_pain",
-        "phlegm", "throat_irritation", "runny_nose"
-    ],
-    "Digestive": [
-        "stomach_pain", "acidity", "vomiting",
-        "nausea", "abdominal_pain", "diarrhoea", "constipation"
-    ],
-    "Skin": [
-        "skin_rash", "itching", "blister",
-        "red_spots_over_body", "skin_peeling"
-    ],
-    "Neurological": [
-        "headache", "dizziness", "loss_of_balance",
-        "unsteadiness", "slurred_speech"
-    ]
-}
-
-# flatten all symptoms (for vector creation)
-all_symptoms = sorted(set([s for group in symptom_groups.values() for s in group]))
-
-# =========================
-# TITLE
+# UI TITLE
 # =========================
 st.title("🩺 AI Virtual Doctor")
-
-st.write("Answer a few questions and I will predict your disease.")
+st.write("Select symptoms and get disease prediction")
 
 # =========================
-# INPUT FORM
+# SYMPTOM CATEGORIES (UI ONLY)
+# =========================
+symptom_groups = {
+    "General": ["itching", "skin_rash", "fatigue", "fever", "chills", "weight_loss"],
+    "Respiratory": ["cough", "breathlessness", "chest_pain", "phlegm"],
+    "Digestive": ["stomach_pain", "acidity", "vomiting", "nausea", "diarrhoea"],
+    "Skin": ["skin_rash", "itching", "blister"],
+    "Neurological": ["headache", "dizziness", "loss_of_balance"]
+}
+
+# =========================
+# FORM UI
 # =========================
 with st.form("doctor_form"):
     age = st.number_input("Age", 1, 120, 25)
     gender = st.selectbox("Gender", ["Male", "Female"])
 
-    selected_groups = st.multiselect(
-        "Select Symptom Categories",
-        list(symptom_groups.keys())
-    )
+    selected_symptoms = []
 
-    symptoms_selected = []
+    for cat in symptom_groups:
+        selected_symptoms += st.multiselect(cat, symptom_groups[cat], key=cat)
 
-    for group in selected_groups:
-        st.subheader(f"{group} Symptoms")
-        symptoms_selected += st.multiselect(
-            f"Select {group} symptoms",
-            symptom_groups[group],
-            key=group
-        )
-
-    submitted = st.form_submit_button("Predict Disease")
+    submit = st.form_submit_button("Predict Disease")
 
 # =========================
 # PREDICTION FUNCTION
 # =========================
 def predict(symptoms):
-    input_data = [0] * len(all_symptoms)
+    input_data = np.zeros(len(feature_columns))
 
     for s in symptoms:
-        if s in all_symptoms:
-            idx = all_symptoms.index(s)
+        if s in feature_columns:
+            idx = list(feature_columns).index(s)
             input_data[idx] = 1
 
-    input_array = np.array([input_data])
-
-    pred = model.predict(input_array)
-    disease = label_encoder.inverse_transform(pred)[0]
+    pred = model.predict([input_data])[0]
+    disease = label_encoder.inverse_transform([pred])[0]
 
     return disease
 
 # =========================
-# MEDICINE LOOKUP
+# MEDICINE + INFO
 # =========================
-def get_medicine(disease):
+def get_info(disease):
     row = df[df["prognosis"] == disease]
+
     if len(row) > 0:
-        return row["medicine"].values[0]
-    return "Not available"
+        medicine = row["medicine"].values[0]
+    else:
+        medicine = "Not available"
+
+    return medicine
 
 # =========================
-# RESULT
+# OUTPUT
 # =========================
-if submitted:
-    disease = predict(symptoms_selected)
-    medicine = get_medicine(disease)
+if submit:
+    if len(selected_symptoms) == 0:
+        st.error("Select at least one symptom")
+    else:
+        disease = predict(selected_symptoms)
+        medicine = get_info(disease)
 
-    st.success(f"🧠 Predicted Disease: {disease}")
-
-    st.info(f"💊 Suggested Medicine: {medicine}")
-
-    st.warning("⚠️ This is an AI prediction, consult a doctor for confirmation.")
+        st.success(f"🧠 Disease: {disease}")
+        st.info(f"💊 Medicine: {medicine}")
+        st.warning("⚠️ This is an AI prediction, consult a doctor")
