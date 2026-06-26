@@ -2,128 +2,112 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import joblib
-import os
 
 # =========================
-# CONFIG
+# LOAD MODEL + ENCODER
 # =========================
-st.set_page_config(page_title="AI Virtual Doctor", layout="centered")
+model = joblib.load("disease_predictor_model.pkl")
+label_encoder = joblib.load("label_encoder.pkl")
 
-st.title("🩺 AI Virtual Doctor")
-st.write("Enter your details like a real consultation.")
-
-# =========================
-# LOAD FILES
-# =========================
-BASE_DIR = os.path.dirname(__file__)
-
-model = joblib.load(os.path.join(BASE_DIR, "disease_predictor_model.pkl"))
-label_encoder = joblib.load(os.path.join(BASE_DIR, "label_encoder.pkl"))
-df = pd.read_csv(os.path.join(BASE_DIR, "training.csv"))
-
-symptoms = list(df.columns[:-2])  # last two = prognosis, medicine
+# OPTIONAL: dataset for medicine lookup
+df = pd.read_csv("training.csv")
 
 # =========================
-# SESSION STATE
+# SYMPTOM CATEGORIES
 # =========================
-if "age" not in st.session_state:
-    st.session_state.age = None
-if "gender" not in st.session_state:
-    st.session_state.gender = None
-
-# =========================
-# USER INPUTS
-# =========================
-st.subheader("Personal Details")
-
-age = st.number_input("Enter Age", min_value=0, max_value=120, value=25)
-gender = st.selectbox("Select Gender", ["Male", "Female"])
-
-st.session_state.age = age
-st.session_state.gender = gender
-
-# =========================
-# CATEGORY SYSTEM
-# =========================
-categories = {
-    "General": ["fatigue", "lethargy", "malaise", "weight_gain", "weight_loss", "loss_of_appetite"],
-    "Fever": ["high_fever", "mild_fever", "chills", "shivering", "sweating"],
-    "Respiratory": ["cough", "breathlessness", "chest_pain", "phlegm", "runny_nose", "congestion"],
-    "Digestive": ["stomach_pain", "abdominal_pain", "vomiting", "nausea", "diarrhoea", "constipation"],
-    "Skin": ["itching", "skin_rash", "blister", "pus_filled_pimples", "skin_peeling"],
-    "Neuro": ["headache", "dizziness", "loss_of_balance", "blurred_and_distorted_vision"],
-    "Urinary": ["burning_micturition", "polyuria", "dark_urine", "bladder_discomfort"],
-    "Muscle": ["joint_pain", "back_pain", "neck_pain", "muscle_pain"]
+symptom_groups = {
+    "General": [
+        "itching", "skin_rash", "fatigue", "lethargy",
+        "fever", "chills", "weight_loss", "weight_gain"
+    ],
+    "Respiratory": [
+        "cough", "breathlessness", "chest_pain",
+        "phlegm", "throat_irritation", "runny_nose"
+    ],
+    "Digestive": [
+        "stomach_pain", "acidity", "vomiting",
+        "nausea", "abdominal_pain", "diarrhoea", "constipation"
+    ],
+    "Skin": [
+        "skin_rash", "itching", "blister",
+        "red_spots_over_body", "skin_peeling"
+    ],
+    "Neurological": [
+        "headache", "dizziness", "loss_of_balance",
+        "unsteadiness", "slurred_speech"
+    ]
 }
 
-st.subheader("Select Symptom Category")
+# flatten all symptoms (for vector creation)
+all_symptoms = sorted(set([s for group in symptom_groups.values() for s in group]))
 
-selected_categories = st.multiselect(
-    "Choose category",
-    list(categories.keys())
-)
+# =========================
+# TITLE
+# =========================
+st.title("🩺 AI Virtual Doctor")
 
-# collect symptoms
-available_symptoms = []
-for c in selected_categories:
-    available_symptoms.extend(categories[c])
+st.write("Answer a few questions and I will predict your disease.")
 
-available_symptoms = list(set(available_symptoms))
+# =========================
+# INPUT FORM
+# =========================
+with st.form("doctor_form"):
+    age = st.number_input("Age", 1, 120, 25)
+    gender = st.selectbox("Gender", ["Male", "Female"])
 
-st.subheader("Select Symptoms")
+    selected_groups = st.multiselect(
+        "Select Symptom Categories",
+        list(symptom_groups.keys())
+    )
 
-selected_symptoms = st.multiselect(
-    "Choose your symptoms",
-    available_symptoms
-)
+    symptoms_selected = []
+
+    for group in selected_groups:
+        st.subheader(f"{group} Symptoms")
+        symptoms_selected += st.multiselect(
+            f"Select {group} symptoms",
+            symptom_groups[group],
+            key=group
+        )
+
+    submitted = st.form_submit_button("Predict Disease")
 
 # =========================
 # PREDICTION FUNCTION
 # =========================
-def predict(symptoms_selected):
-    vector = [0] * len(symptoms)
+def predict(symptoms):
+    input_data = [0] * len(all_symptoms)
 
-    for i, s in enumerate(symptoms):
-        if s in symptoms_selected:
-            vector[i] = 1
+    for s in symptoms:
+        if s in all_symptoms:
+            idx = all_symptoms.index(s)
+            input_data[idx] = 1
 
-    input_data = np.array([vector])
+    input_array = np.array([input_data])
 
-    pred = model.predict(input_data)[0]
+    pred = model.predict(input_array)
+    disease = label_encoder.inverse_transform(pred)[0]
 
-    # decode label safely
-    try:
-        disease = label_encoder.inverse_transform([pred])[0]
-    except:
-        disease = str(pred)
-
-    # medicine lookup (SAFE)
-    med_row = df[df["prognosis"].astype(str).str.strip() == str(disease)]
-
-    if len(med_row) > 0:
-        medicine = med_row["medicine"].values[0]
-    else:
-        medicine = "Consult a doctor for proper medication."
-
-    return disease, medicine
+    return disease
 
 # =========================
-# BUTTON
+# MEDICINE LOOKUP
 # =========================
-if st.button("🔍 Get Diagnosis"):
+def get_medicine(disease):
+    row = df[df["prognosis"] == disease]
+    if len(row) > 0:
+        return row["medicine"].values[0]
+    return "Not available"
 
-    if len(selected_symptoms) == 0:
-        st.warning("Please select at least one symptom")
-    else:
-        disease, medicine = predict(selected_symptoms)
+# =========================
+# RESULT
+# =========================
+if submitted:
+    disease = predict(symptoms_selected)
+    medicine = get_medicine(disease)
 
-        st.success("Diagnosis Complete")
+    st.success(f"🧠 Predicted Disease: {disease}")
 
-        st.markdown("### 🧾 Disease Detected")
-        st.markdown(f"## {disease}")
+    st.info(f"💊 Suggested Medicine: {medicine}")
 
-        st.markdown("### 💊 Medicine")
-        st.write(medicine)
-
-        st.markdown("### 🧠 Advice")
-        st.write("This is an AI suggestion. Please consult a doctor for confirmation.")
+    st.warning("⚠️ This is an AI prediction, consult a doctor for confirmation.")
