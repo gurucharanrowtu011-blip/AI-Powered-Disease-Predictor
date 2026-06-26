@@ -13,67 +13,62 @@ st.set_page_config(
 )
 
 st.title("🩺 AI Health Assistant")
-st.write("Select your symptoms to get disease prediction instantly.")
+st.write("Select your symptom category and symptoms")
 
 # =========================
-# SAFE FILE LOADING (FIX EOF ERROR ISSUES)
+# SAFE LOAD MODELS
 # =========================
 BASE_DIR = os.path.dirname(__file__)
 
-model_path = os.path.join(BASE_DIR, "disease_predictor_model.pkl")
-encoder_path = os.path.join(BASE_DIR, "label_encoder.pkl")
-symptom_path = os.path.join(BASE_DIR, "symptom_dict.pkl")
-
-if not os.path.exists(model_path):
-    st.error("❌ Model file not found. Please upload disease_predictor_model.pkl")
-    st.stop()
-
-if not os.path.exists(encoder_path):
-    st.error("❌ Encoder file not found.")
-    st.stop()
-
-if not os.path.exists(symptom_path):
-    st.error("❌ Symptom dictionary not found.")
-    st.stop()
-
-model = joblib.load(model_path)
-encoder = joblib.load(encoder_path)
-symptom_dict = joblib.load(symptom_path)
+model = joblib.load(os.path.join(BASE_DIR, "disease_predictor_model.pkl"))
+encoder = joblib.load(os.path.join(BASE_DIR, "label_encoder.pkl"))
+symptom_dict = joblib.load(os.path.join(BASE_DIR, "symptom_dict.pkl"))
 
 # =========================
-# SYMPTOM CATEGORIES (UI ONLY)
+# SYMPTOM GROUPING (CLEAN UI)
 # =========================
-categories = {
-    "General": ["itching", "fatigue", "high_fever", "chills", "weight_loss"],
-    "Respiratory": ["cough", "breathlessness", "chest_pain", "sore_throat"],
-    "Digestive": ["nausea", "vomiting", "abdominal_pain", "acidity"],
-    "Skin": ["skin_rash", "blister", "itching"],
-    "Neurological": ["headache", "dizziness", "loss_of_balance"],
-    "Urinary": ["burning_micturition", "urination_frequent"]
+symptom_categories = {
+    "General": [
+        "high_fever", "chills", "fatigue", "weakness_in_limbs", "malaise"
+    ],
+    "Respiratory": [
+        "cough", "breathlessness", "chest_pain", "sore_throat", "runny_nose"
+    ],
+    "Skin": [
+        "itching", "skin_rash", "blister", "red_spots_over_body"
+    ],
+    "Digestive": [
+        "stomach_pain", "vomiting", "nausea", "acidity", "abdominal_pain"
+    ],
+    "Neurological": [
+        "headache", "dizziness", "loss_of_balance", "unsteadiness"
+    ],
+    "Urinary": [
+        "burning_micturition", "urination_frequent"
+    ]
 }
 
 # =========================
-# INPUT UI (FAST FORM)
+# UI FORM
 # =========================
-with st.form("predict_form"):
+with st.form("form"):
 
     age = st.number_input("Age", 0, 120, 25)
     gender = st.radio("Gender", ["Male", "Female"])
 
-    category = st.selectbox("Choose Symptom Category", list(categories.keys()))
-    symptoms = st.multiselect("Select Symptoms", categories[category])
+    category = st.selectbox("Choose Symptom Category", list(symptom_categories.keys()))
+    symptoms = st.multiselect("Select Symptoms", symptom_categories[category])
 
-    submit = st.form_submit_button("🔍 Predict Disease")
+    submit = st.form_submit_button("Predict Disease")
 
 # =========================
-# MEDICINE MAP (OPTIONAL)
+# MEDICINE MAP (SIMPLE)
 # =========================
 medicine_map = {
-    "Fungal infection": "Antifungal cream, Fluconazole",
     "Common Cold": "Paracetamol, Rest, Fluids",
     "Dengue": "Paracetamol, Hydration",
-    "Malaria": "Consult doctor for antimalarials",
-    "Pneumonia": "Antibiotics prescribed by doctor"
+    "Malaria": "Antimalarial drugs (consult doctor)",
+    "Fungal infection": "Antifungal cream, Fluconazole"
 }
 
 # =========================
@@ -92,22 +87,22 @@ if submit:
         if s in symptom_dict:
             input_vector[symptom_dict[s]] = 1
 
-    prediction = model.predict([input_vector])[0]
-    disease = encoder.inverse_transform([prediction])[0]
+    pred = model.predict([input_vector])[0]
+    disease = encoder.inverse_transform([pred])[0]
 
     try:
         confidence = np.max(model.predict_proba([input_vector])) * 100
     except:
         confidence = None
 
-    medicine = medicine_map.get(disease, "Consult a doctor for proper treatment")
+    medicine = medicine_map.get(disease, "Consult doctor for proper treatment")
 
     # =========================
     # OUTPUT
     # =========================
     st.success("Prediction Complete")
 
-    st.markdown("## 🩺 Disease Identified")
+    st.markdown("## 🩺 Disease")
     st.markdown(f"### {disease}")
 
     if confidence:
