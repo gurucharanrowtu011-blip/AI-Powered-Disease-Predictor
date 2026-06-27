@@ -127,7 +127,7 @@ with col1:
 with col2:
     gender = st.selectbox(
         "Gender",
-        ["Male", "Female", "Other"]
+        ["Male", "Female"]
     )
 
 st.divider()
