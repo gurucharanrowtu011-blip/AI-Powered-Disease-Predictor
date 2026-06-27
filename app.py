@@ -108,6 +108,30 @@ categories = {
 # =========================
 # INPUT UI
 # =========================
+# =========================
+# INPUT UI
+# =========================
+st.subheader("Patient Information")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    age = st.number_input(
+        "Age",
+        min_value=0,
+        max_value=120,
+        value=25,
+        step=1
+    )
+
+with col2:
+    gender = st.selectbox(
+        "Gender",
+        ["Male", "Female", "Other"]
+    )
+
+st.divider()
+
 st.subheader("Select Symptoms")
 
 selected_symptoms = []
